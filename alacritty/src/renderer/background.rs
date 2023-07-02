@@ -248,23 +248,35 @@ impl BackgroundRenderer {
                 let image = &self.images[index as usize];
                 gl::BindTexture(gl::TEXTURE_2D, image.texture);
 
-                // 画像の UV 変換
-                let scale_x = self.width / image.image_width as f32;
-                let scale_y = self.height / image.image_height as f32;
+		// ターミナルのサイズが画像内に収まるようにサイズに変換して考える
+		let ratio_x = image.image_width as f32 / self.width;
+		let ratio_y = image.image_height as f32/ self.height;
+		// ターミナル内に画像がおさまるように、ターミナルのサイズが小さくなる方の比率を採用
+		let terminal_logical_ratio = ratio_x.min(ratio_y);
+		// ターミナルを画像内に収めたときのサイズ
+		let terminal_logical_width = self.width * terminal_logical_ratio;
+		let terminal_logical_height = self.height * terminal_logical_ratio;
 
-                // (1, 1) より外を参照してたらフィットするよう補正
-                // [0, 1] だったら補正は不要なので 1 で抑えておく
-                let factor = scale_x.max(scale_y).max(1.0);
-                let x = scale_x / factor;
-                let y = scale_y / factor;
+		// 画像を切り取る領域の座標（ピクセル）
+		let (image_center_x, image_center_y) = (image.image_width as f32 / 2.0, image.image_height as f32 / 2.0);
+		let (bottom_left_x, bottom_left_y) = (image_center_x - terminal_logical_width / 2.0, image_center_y - terminal_logical_height / 2.0 );
+		let (top_right_x, top_right_y) = (image_center_x + terminal_logical_width / 2.0, image_center_y + terminal_logical_height / 2.0 );
 
-                // 画像の中心とターミナルの中心が一致するように並行移動
-                let t_x = 0.5 * (image.image_width as f32 - self.width).max(0.0) / self.width;
-                let t_y = 0.5 * (image.image_height as f32 - self.height).max(0.0) / self.height;
+		// 画像の切り取る領域領域の座標（UV 座標）
+		let (bottom_left_u, bottom_left_v) = (bottom_left_x / image.image_width as f32, bottom_left_y / image.image_height as f32);
+		let (top_right_u, top_right_v) = (top_right_x / image.image_width as f32, top_right_y / image.image_height as f32);
 
-                // 並行移動してからスケール
-                gl::Uniform3f(self.m0_location, x, 0.0, x * t_x);
-                gl::Uniform3f(self.m1_location, 0.0, y, y * t_y);
+		// 頂点アトリビュートで [0, 1] の UV を画像の切り取る領域に変換するための行列を算出
+		// 平行移動成分。左下の UV 座標をそのまま
+		let t_x = bottom_left_u;
+		let t_y = bottom_left_v;
+		// スケール
+		let scale_x = top_right_u - bottom_left_u;
+		let scale_y = top_right_v - bottom_left_v;
+		
+                // 切り取る領域のサイズに一致するようスケールしてから平行移動
+                gl::Uniform3f(self.m0_location, scale_x, 0.0, t_x);
+                gl::Uniform3f(self.m1_location, 0.0, scale_y, t_y);
                 gl::Uniform1f(self.intensity_location, self.intensity);
 
                 gl::DrawArrays(gl::TRIANGLES, 0, 6 as GLsizei);
