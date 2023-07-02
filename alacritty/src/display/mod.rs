@@ -6,6 +6,7 @@ use std::fmt::{self, Formatter};
 use std::mem::{self, ManuallyDrop};
 use std::num::NonZeroU32;
 use std::ops::{Deref, DerefMut};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
@@ -52,6 +53,8 @@ use crate::renderer::rects::{RenderLine, RenderLines, RenderRect};
 use crate::renderer::{self, GlyphCache, Renderer};
 use crate::scheduler::{Scheduler, TimerId, Topic};
 use crate::string::{ShortenDirection, StrShortener};
+
+use home_dir::*;
 
 pub mod content;
 pub mod cursor;
@@ -424,10 +427,26 @@ impl Display {
         let context = gl_context.make_current(&surface)?;
 
         // Create renderer.
+        // 背景画像は相対パスを許容
+        // TODO: config フォルダを全走査したい
+        let background_images = config
+            .window_background_images()
+            .iter()
+            .map(|path| {
+                if path.is_absolute() {
+                    path.clone()
+                } else {
+                    Path::new("~/.config/alacritty").expand_home().unwrap().join(path)
+                }
+            })
+            .collect::<Vec<PathBuf>>();
+        for path in &background_images {
+            println!("{}", path.display());
+        }
         let mut renderer = Renderer::new(
             &context,
             config.debug.renderer,
-            config.window_background_images(),
+            &background_images,
             config.window_background_intensity(),
         )?;
 
