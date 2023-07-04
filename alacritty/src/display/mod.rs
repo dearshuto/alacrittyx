@@ -6,7 +6,6 @@ use std::fmt::{self, Formatter};
 use std::mem::{self, ManuallyDrop};
 use std::num::NonZeroU32;
 use std::ops::{Deref, DerefMut};
-use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
@@ -53,8 +52,6 @@ use crate::renderer::rects::{RenderLine, RenderLines, RenderRect};
 use crate::renderer::{self, GlyphCache, Renderer};
 use crate::scheduler::{Scheduler, TimerId, Topic};
 use crate::string::{ShortenDirection, StrShortener};
-
-use home_dir::*;
 
 pub mod content;
 pub mod cursor;
@@ -428,18 +425,20 @@ impl Display {
 
         // Create renderer.
         // 背景画像は相対パスを許容
-        // TODO: config フォルダを全走査したい
-        let background_images = config
-            .window_background_images()
-            .iter()
-            .map(|path| {
-                if path.is_absolute() {
-                    path.clone()
-                } else {
-                    Path::new("~/.config/alacritty").expand_home().unwrap().join(path)
+        let mut background_images = Vec::new();
+        for path in config.window_background_images().iter() {
+            if path.is_absolute() {
+                // 絶対パスで指定されてたらそのまま採用
+                background_images.push(path.clone());
+            } else {
+                // 相対パスだったら設定ファイルからの相対とする
+                for config_path in &config.config_paths {
+                    let absolute_path = config_path.parent().unwrap().join(path);
+                    background_images.push(absolute_path);
                 }
-            })
-            .collect::<Vec<PathBuf>>();
+            }
+        }
+
         for path in &background_images {
             println!("{}", path.display());
         }
