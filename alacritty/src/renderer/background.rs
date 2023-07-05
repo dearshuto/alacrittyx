@@ -168,7 +168,16 @@ impl BackgroundRenderer {
                 gl::BindBuffer(gl::ARRAY_BUFFER, 0);
             }
             let images =
-                paths.iter().map(|path| Self::create_texture(path)).collect::<Vec<Image>>();
+                paths
+                    .iter()
+                    .filter_map(|path| {
+                        if path.is_file() {
+                            Some(Self::create_texture(path))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<Image>>();
             gl::BindVertexArray(0);
 
             let m0_location = gl::GetUniformLocation(program, m0_name.as_ptr());
