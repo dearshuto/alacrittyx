@@ -13,6 +13,7 @@ use once_cell::sync::OnceCell;
 use alacritty_terminal::index::Point;
 use alacritty_terminal::term::cell::Flags;
 use alacritty_terminal::term::color::Rgb;
+use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 
 use crate::config::debug::RendererPreference;
 use crate::display::content::RenderableCell;
@@ -93,12 +94,16 @@ impl Renderer {
     ///
     /// This will automatically pick between the GLES2 and GLSL3 renderer based on the GPU's
     /// supported OpenGL version.
-    pub fn new(
+    pub fn new<TWindow>(
         context: &PossiblyCurrentContext,
         renderer_prefernce: Option<RendererPreference>,
         background_image_paths: &[PathBuf],
         background_intensity: f32,
-    ) -> Result<Self, Error> {
+        window: TWindow,
+    ) -> Result<Self, Error>
+    where
+        TWindow: HasRawWindowHandle + HasRawDisplayHandle,
+    {
         // We need to load OpenGL functions once per instance, but only after we make our context
         // current due to WGL limitations.
         if !GL_FUNS_LOADED.swap(true, Ordering::Relaxed) {
@@ -153,7 +158,7 @@ impl Renderer {
         }
 
         let background_renderer =
-            BackgroundRenderer::new(background_image_paths, background_intensity);
+            BackgroundRenderer::new(background_image_paths, background_intensity, window);
 
         Ok(Self { text_renderer, rect_renderer, background_renderer })
     }
